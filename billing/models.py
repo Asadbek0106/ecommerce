@@ -1,6 +1,5 @@
 from django.db import models
 from products.models import Order
-from django.db import models
 
 
 class Payment(models.Model):

@@ -40,6 +40,8 @@ class Order(models.Model):
     def set_status(self, new_status):
         if new_status not in dict(self.STATUS_CHOICES):
             raise ValueError("Invalid status")
+        if not self.is_transition_allowed(new_status):
+            raise ValueError(f"Transition from {self.status} to {new_status} is not allowed")
         self.status = new_status
         self.save()
 
@@ -53,4 +55,4 @@ class Order(models.Model):
         return new_status in allowed_transitions.get(self.status, [])
 
     def __str__(self):
-        return f"Order({self.product.name} by {self.customer.username})"
+        return f"Order({self.product.name} by {self.customer})"

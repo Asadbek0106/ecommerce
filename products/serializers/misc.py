@@ -1,4 +1,3 @@
-from django.db import models
 from rest_framework import serializers
 from products.models import Product, Review, Category, ProductViewHistory
 
@@ -13,6 +12,7 @@ class ReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Review
         fields = '__all__'
+        read_only_fields = ['user']
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -20,10 +20,11 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'price', 'stock','avg_rating']
+        fields = ['id', 'name', 'description', 'price', 'category', 'stock', 'avg_rating']
 
 
 class ProductViewHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductViewHistory
         fields = '__all__'
+        read_only_fields = ['user']

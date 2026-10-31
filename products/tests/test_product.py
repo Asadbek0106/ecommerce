@@ -1,7 +1,7 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from products.models import Product, Category, Review, User
+from products.models import Product, Category, Review
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -19,9 +19,9 @@ class ProductViewSetTestCase(APITestCase):
         self.product1 = Product.objects.create(name='Laptop', description='Powerful Laptop', category=self.category1, price=5000)
         self.product2 = Product.objects.create(name='Book', description='Thriller Book', category=self.category2, price=6000)
 
-        Review.objects.create(product=self.product1, rating=5, user_id=1)
-        Review.objects.create(product=self.product1, rating=4, user_id=2)
-        Review.objects.create(product=self.product2, rating=2, user_id=1)
+        Review.objects.create(product=self.product1, rating=5, user=self.user)
+        Review.objects.create(product=self.product1, rating=4, user=self.staff_user)
+        Review.objects.create(product=self.product2, rating=2, user=self.user)
 
     def test_product_list(self):
         url = reverse('product-list')

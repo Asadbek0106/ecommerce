@@ -1,3 +1,44 @@
-from django.test import TestCase
+from unittest import mock
 
-# Create your tests here.
+from django.contrib.auth import get_user_model
+from django.urls import reverse
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from billing.models import Payment
+from products.models import Order, Product
+
+User = get_user_model()
+
+
+class CreateChargeTests(APITestCase):
+
+    def setUp(self):
+        self.user = User.objects.create_user(phone_number='+998901234567', password='testpass')
+        self.other_user = User.objects.create_user(phone_number='+998901112233', password='testpass')
+        product = Product.objects.create(name='Book', description='Book', price=10, stock=5)
+        self.order = Order.objects.create(product=product, customer=self.user, quantity=2)
+        self.url = reverse('create-charge')
+
+    def test_anonymous_cannot_pay(self):
+        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_cannot_pay_foreign_order(self):
+        self.client.force_authenticate(self.other_user)
+        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    @mock.patch('billing.views.stripe.Charge.create', return_value={'id': 'ch_test'})
+    def test_successful_payment(self, charge_create):
+        self.client.force_authenticate(self.user)
+        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        charge_create.assert_called_once_with(amount=2000, currency='usd', source='tok')
+        self.order.refresh_from_db()
+        self.assertTrue(self.order.is_paid)
+        self.assertEqual(Payment.objects.get().stripe_charge_id, 'ch_test')
+
+        # Paying the same order twice is rejected
+        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

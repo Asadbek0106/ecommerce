@@ -1,7 +1,7 @@
 from django.core.cache import cache
 from django.contrib.auth import get_user_model
 from rest_framework_simplejwt.tokens import RefreshToken
-import random
+import secrets
 import requests
 from rest_framework import viewsets, status
 from rest_framework.response import Response
@@ -20,7 +20,7 @@ class SMSLoginViewSet(viewsets.ViewSet):
             phone_number = serializer.validated_data['phone_number']
 
             # Generate a random 6-digit verification code
-            verification_code = str(random.randint(100000, 999999))
+            verification_code = f'{secrets.randbelow(900000) + 100000}'
 
             # Send SMS via Infobip
             url = 'https://43vvd1.api.infobip.com/sms/2/text/advanced'
@@ -44,11 +44,14 @@ class SMSLoginViewSet(viewsets.ViewSet):
                     }
                 ]
             }
-            response = requests.post(url, json=payload, headers=headers)
+            try:
+                response = requests.post(url, json=payload, headers=headers, timeout=10)
+            except requests.RequestException:
+                return Response({"message": "Failed to send SMS"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
             if response.status_code == 200:
                 # Store the verification code and phone number in cache for 5 minutes
-                cache.set(phone_number, verification_code, 300)
+                cache.set(f'sms_code:{phone_number}', verification_code, 300)
 
                 return Response({"message": "SMS sent successfully"}, status=status.HTTP_200_OK)
 
@@ -61,12 +64,15 @@ class SMSLoginViewSet(viewsets.ViewSet):
         if serializer.is_valid():
             phone_number = serializer.validated_data['phone_number']
             verification_code = serializer.validated_data['verification_code']
-            cached_code = cache.get(phone_number)
+            cached_code = cache.get(f'sms_code:{phone_number}')
 
-            if verification_code == cached_code:
+            if cached_code is not None and secrets.compare_digest(verification_code, cached_code):
+                # The code can be used only once
+                cache.delete(f'sms_code:{phone_number}')
                 user, created = User.objects.get_or_create(phone_number=phone_number)
                 if created:
-                    # Set other fields like username, email, etc. if needed
+                    # Users created via SMS have no password
+                    user.set_unusable_password()
                     user.save()
 
                 # Generate JWT token for the user

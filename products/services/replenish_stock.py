@@ -1,23 +1,24 @@
-from django.http import JsonResponse, HttpResponseBadRequest
-from django.contrib.admin.views.decorators import staff_member_required
-from products.models import Product  # Make sure to import your Product model
 from drf_yasg.utils import swagger_auto_schema
-from rest_framework.decorators import api_view
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAdminUser
+from rest_framework.response import Response
+
+from products.models import Product
 
 
+@swagger_auto_schema(method='post', operation_description="Admin replenishes stock for a product")
 @api_view(['POST'])
-@swagger_auto_schema(operation_description="Admin replenishes stock for a product")
-@staff_member_required
+@permission_classes([IsAdminUser])
 def admin_replenish_stock(request, product_id, amount):
+    if amount <= 0:
+        return Response({'status': 'error', 'message': 'Amount must be positive'},
+                        status=status.HTTP_400_BAD_REQUEST)
     try:
-        # amount = int(request.POST.get('amount', 0))
         product = Product.objects.get(id=product_id)
-        product.increase_stock(amount)
-
-        return JsonResponse({'status': 'success', 'message': f'Successfully replenished stock by {amount}'})
-
     except Product.DoesNotExist:
-        return JsonResponse({'status': 'error', 'message': 'Product does not exist'}, status=400)
+        return Response({'status': 'error', 'message': 'Product does not exist'},
+                        status=status.HTTP_404_NOT_FOUND)
 
-    except ValueError:
-        return HttpResponseBadRequest('Invalid input.')
+    product.increase_stock(amount)
+    return Response({'status': 'success', 'message': f'Successfully replenished stock by {amount}'})

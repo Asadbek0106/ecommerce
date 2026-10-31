@@ -26,12 +26,6 @@ class ProductViewSet(viewsets.ModelViewSet):
     filterset_class = ProductFilter
     search_fields = ['name', 'description']
 
-    def list(self, request, *args, **kwargs):
-        category = request.query_params.get('category', None)
-        if category:
-            self.queryset = self.queryset.filter(category=category)
-        return super().list(request, *args, **kwargs)
-
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(instance)
@@ -53,11 +47,9 @@ class ProductViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def average_rating(self, request, pk=None):
         product = self.get_object()
-        reviews = product.reviews.all()
+        avg_rating = product.reviews.aggregate(avg=models.Avg('rating'))['avg']
 
-        if reviews.count() == 0:
+        if avg_rating is None:
             return Response({"average_rating": "No reviews yet!"})
-
-        avg_rating = sum([review.rating for review in reviews]) / reviews.count()
 
         return Response({"average_rating": avg_rating})

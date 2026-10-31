@@ -1,8 +1,7 @@
 from django.urls import reverse
 from rest_framework import status
 from rest_framework.test import APITestCase
-from products.models import Product, Category
-from django.contrib.auth.models import User
+from products.models import Category
 from django.contrib.auth import get_user_model
 
 User = get_user_model()
@@ -22,7 +21,7 @@ class CategoryTests(APITestCase):
         response = self.client.get(url)
 
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(response.data), 4)
+        self.assertEqual(response.data['count'], 4)
 
     def test_category_detail(self):
         url = reverse('category-detail', args=[self.category1.pk])

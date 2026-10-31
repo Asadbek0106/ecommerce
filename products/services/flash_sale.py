@@ -1,25 +1,39 @@
-from rest_framework.decorators import api_view
-from rest_framework.response import Response
-from rest_framework import status
-from datetime import datetime, timedelta
-from products.models import Product, ProductViewHistory, FlashSale
+from datetime import timedelta
 
-from rest_framework import generics, serializers
-from products.models import FlashSale
+from django.utils import timezone
+from rest_framework import generics, serializers, status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+
+from products.models import Product, ProductViewHistory, FlashSale
+from products.permissions import IsStaffOrReadOnly
 
 
 class FlashSaleListCreateView(generics.ListCreateAPIView):
-    queryset = FlashSale.objects.all()
+    permission_classes = [IsStaffOrReadOnly]
+    queryset = FlashSale.objects.order_by('start_time')
 
     class FlashSaleSerializer(serializers.ModelSerializer):
         class Meta:
             model = FlashSale
             fields = ('id', 'product', 'discount_percentage', 'start_time', 'end_time')
 
+        def validate_discount_percentage(self, value):
+            if not 1 <= value <= 100:
+                raise serializers.ValidationError("Discount must be between 1 and 100.")
+            return value
+
+        def validate(self, attrs):
+            if attrs['start_time'] >= attrs['end_time']:
+                raise serializers.ValidationError("end_time must be after start_time.")
+            return attrs
+
     serializer_class = FlashSaleSerializer
 
 
 @api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def check_flash_sale(request, product_id):
     try:
         product = Product.objects.get(id=product_id)
@@ -30,9 +44,11 @@ def check_flash_sale(request, product_id):
     user_viewed = ProductViewHistory.objects.filter(user=request.user, product=product).exists()
 
     # Check if the product is or will be on a flash sale within the next 24 hours
+    now = timezone.now()
     upcoming_flash_sale = FlashSale.objects.filter(
         product=product,
-        start_time__lte=datetime.now() + timedelta(hours=24)
+        start_time__lte=now + timedelta(hours=24),
+        end_time__gte=now,
     ).first()
 
     if user_viewed and upcoming_flash_sale:
@@ -48,4 +64,3 @@ def check_flash_sale(request, product_id):
         return Response({
             "message": "No upcoming flash sales for this product."
         })
-

@@ -3,7 +3,8 @@ from rest_framework import permissions
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
     """
-    Custom permission to only allow owners to edit or delete their orders
+    Custom permission to only allow owners to edit or delete their objects.
+    The owner field is taken from ``view.owner_field`` (default: ``user``).
     """
 
     def has_object_permission(self, request, view, obj):
@@ -12,8 +13,9 @@ class IsOwnerOrReadOnly(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Write permissions are only allowed to the owner.
-        return obj.owner == request.user
+        # Write permissions are only allowed to the owner (or staff).
+        owner = getattr(obj, getattr(view, 'owner_field', 'user'), None)
+        return owner == request.user or request.user.is_staff
 
 
 class IsStaffOrReadOnly(permissions.BasePermission):
@@ -24,4 +26,4 @@ class IsStaffOrReadOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         if request.method in permissions.SAFE_METHODS:
             return True
-        return request.user and request.user.is_staff
+        return bool(request.user and request.user.is_staff)
