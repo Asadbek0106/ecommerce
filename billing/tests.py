@@ -21,24 +21,27 @@ class CreateChargeTests(APITestCase):
         self.url = reverse('create-charge')
 
     def test_anonymous_cannot_pay(self):
-        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        response = self.client.post(self.url, {'payment_method': 'pm_card_visa', 'order_id': self.order.id})
         self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
 
     def test_cannot_pay_foreign_order(self):
         self.client.force_authenticate(self.other_user)
-        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        response = self.client.post(self.url, {'payment_method': 'pm_card_visa', 'order_id': self.order.id})
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
 
-    @mock.patch('billing.views.stripe.Charge.create', return_value={'id': 'ch_test'})
+    @mock.patch('billing.views.stripe.PaymentIntent.create', return_value={'id': 'pi_test', 'status': 'succeeded'})
     def test_successful_payment(self, charge_create):
         self.client.force_authenticate(self.user)
-        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        response = self.client.post(self.url, {'payment_method': 'pm_card_visa', 'order_id': self.order.id})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        charge_create.assert_called_once_with(amount=2000, currency='usd', source='tok')
+        charge_create.assert_called_once()
+        kwargs = charge_create.call_args.kwargs
+        self.assertEqual(kwargs['amount'], 2000)
+        self.assertEqual(kwargs['payment_method'], 'pm_card_visa')
         self.order.refresh_from_db()
         self.assertTrue(self.order.is_paid)
-        self.assertEqual(Payment.objects.get().stripe_charge_id, 'ch_test')
+        self.assertEqual(Payment.objects.get().stripe_charge_id, 'pi_test')
 
         # Paying the same order twice is rejected
-        response = self.client.post(self.url, {'stripe_token': 'tok', 'order_id': self.order.id})
+        response = self.client.post(self.url, {'payment_method': 'pm_card_visa', 'order_id': self.order.id})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)

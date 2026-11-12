@@ -1,0 +1,12 @@
+.git
+.github
+.idea
+.venv
+venv
+env
+.env
+**/__pycache__
+*.py[cod]
+db.sqlite3
+data.json
+taqdimot

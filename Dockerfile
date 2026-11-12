@@ -1,16 +1,20 @@
-# Use the official Python image from the Docker Hub
-FROM python:3.12
+FROM python:3.12-slim
 
-# Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install -r requirements.txt
 
-COPY . /app/
+COPY . .
 
-# Run the application
+# Run as an unprivileged user
+RUN useradd --create-home appuser && chown -R appuser /app
+USER appuser
+
+EXPOSE 8000
+
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
